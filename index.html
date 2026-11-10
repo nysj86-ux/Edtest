@@ -1,0 +1,1451 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
+<title>모델 작업실</title>
+<meta name="theme-color" content="#F1F3F1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1311" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="모델 작업실">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" id="touchIcon" href="data:,">
+<link rel="icon" id="favIcon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js" defer></script>
+<style>
+/* Layout: one-screen app. Header + model rail on top, message column, composer pinned at bottom; settings live in bottom sheets. */
+:root{
+  --bg:#F1F3F1; --surface:#FFFFFF; --sunk:#E5E9E6; --line:#D3DAD5;
+  --fg:#17201B; --muted:#5A6660;
+  --accent:#0E6B5E; --accent-fg:#FFFFFF; --accent-soft:#D9ECE6;
+  --danger:#B3261E; --warn:#8F5B00;
+  --m1:#0E6B5E; --m2:#A35A00; --m3:#3B4FC4; --m4:#B23A6B;
+  --font-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",system-ui,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1311; --surface:#171C19; --sunk:#202723; --line:#2C3631;
+    --fg:#E3EAE6; --muted:#96A39C;
+    --accent:#4CC2AC; --accent-fg:#06201B; --accent-soft:#163530;
+    --danger:#F2867E; --warn:#E3B05A;
+    --m1:#4CC2AC; --m2:#E8A55A; --m3:#93A1FF; --m4:#EE86B0;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F1311; --surface:#171C19; --sunk:#202723; --line:#2C3631;
+  --fg:#E3EAE6; --muted:#96A39C;
+  --accent:#4CC2AC; --accent-fg:#06201B; --accent-soft:#163530;
+  --danger:#F2867E; --warn:#E3B05A;
+  --m1:#4CC2AC; --m2:#E8A55A; --m3:#93A1FF; --m4:#EE86B0;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--fg);font:15px/1.65 var(--font-body);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%}
+button{font:inherit;color:inherit}
+[hidden]{display:none!important}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:var(--font-mono)}
+.app{position:fixed;left:0;right:0;top:0;height:var(--app-h,100dvh);display:flex;flex-direction:column}
+
+/* header */
+.top{flex:none;padding-top:env(safe-area-inset-top,0px);background:var(--bg);border-bottom:1px solid var(--line)}
+.top-row{display:flex;align-items:center;gap:4px;min-height:54px;padding:6px max(8px,env(safe-area-inset-right,0px)) 6px max(8px,env(safe-area-inset-left,0px))}
+.ibtn{width:40px;height:40px;display:grid;place-items:center;border:0;background:transparent;border-radius:10px;cursor:pointer;flex:none;color:var(--fg)}
+.ibtn:hover{background:var(--sunk)}
+.ibtn svg{width:22px;height:22px}
+.title{flex:1;min-width:0;text-align:left;border:0;background:none;padding:4px 6px;border-radius:8px;cursor:pointer}
+.title:hover{background:var(--sunk)}
+.title b{display:block;font-weight:600;font-size:15px;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.title small{display:block;font-size:11.5px;color:var(--accent);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seg{display:inline-flex;background:var(--sunk);border-radius:10px;padding:3px;flex:none}
+.seg button{border:0;background:transparent;padding:5px 11px;border-radius:8px;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;line-height:1.5}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgb(0 0 0 / .1)}
+.rail{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:0 max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px))}
+.rail::-webkit-scrollbar{display:none}
+.chip{display:inline-flex;align-items:center;gap:7px;flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px 5px 10px;font-size:13px;line-height:1.4;cursor:pointer;max-width:78vw;color:var(--muted)}
+.chip b{font-weight:500;color:var(--fg);white-space:nowrap}
+.chip .mono{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
+.chip[aria-pressed="true"]{border-color:var(--c,var(--accent));background:color-mix(in srgb,var(--c,var(--accent)) 13%,var(--surface))}
+.chip[aria-pressed="false"] .dot{opacity:.45}
+.chip.ghost{border-style:dashed;background:transparent}
+.chip .warnmark{color:var(--warn);font-size:11px;font-weight:500}
+.chip svg{width:14px;height:14px;flex:none}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--c,var(--accent));flex:none}
+
+/* messages */
+.scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.msgs{max-width:760px;margin:0 auto;padding:18px max(16px,env(safe-area-inset-right,0px)) 28px max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:20px}
+.msgs.wide{max-width:1240px}
+.u{align-self:flex-end;max-width:88%;background:var(--sunk);border-radius:18px 18px 4px 18px;padding:10px 14px;min-width:0}
+.utext{white-space:pre-wrap;word-break:break-word}
+.fchips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+.fchip{font-size:12px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:2px 8px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fchip small{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);margin-left:4px}
+.thumb{max-width:180px;max-height:180px;border-radius:10px;display:block}
+.reply{min-width:0}
+.reply-head{display:flex;align-items:center;gap:7px;font-size:12.5px;margin-bottom:4px;min-width:0}
+.rname{font-weight:600;white-space:nowrap}
+.rmodel{font-family:var(--font-mono);font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.md{word-break:break-word}
+.md>:first-child{margin-top:0}.md>:last-child{margin-bottom:0}
+.md p{margin:.55em 0}
+.md ul,.md ol{padding-left:1.35em;margin:.5em 0}
+.md li{margin:.15em 0}
+.md h1,.md h2,.md h3,.md h4{font-size:1.04em;font-weight:600;margin:1.1em 0 .4em;line-height:1.45}
+.md a{color:var(--accent)}
+.md code{font-family:var(--font-mono);font-size:.88em;background:var(--sunk);padding:.1em .35em;border-radius:4px}
+.md pre{background:var(--sunk);padding:10px 12px;border-radius:8px;overflow-x:auto;font:12.5px/1.55 var(--font-mono)}
+.md pre code{background:none;padding:0;font-size:inherit}
+.md table{border-collapse:collapse;display:block;overflow-x:auto;max-width:100%;margin:.6em 0}
+.md th,.md td{border:1px solid var(--line);padding:6px 9px;font-size:13.5px;vertical-align:top;text-align:left}
+.md th{background:var(--sunk);font-weight:600}
+.md blockquote{margin:.6em 0;padding-left:12px;border-left:3px solid var(--line);color:var(--muted)}
+.md hr{border:0;border-top:1px solid var(--line);margin:1em 0}
+.think{margin:2px 0 8px;font-size:13px;color:var(--muted);border:1px dashed var(--line);border-radius:8px;padding:6px 10px}
+.think summary{cursor:pointer;font-size:12.5px}
+.think div{white-space:pre-wrap;max-height:240px;overflow:auto;margin-top:6px;line-height:1.55}
+.err{color:var(--danger);background:color-mix(in srgb,var(--danger) 9%,transparent);border-radius:8px;padding:9px 11px;font-size:13.5px;white-space:pre-wrap;word-break:break-word}
+.foot{display:flex;align-items:center;gap:2px;margin-top:6px;color:var(--muted);font-size:12px;flex-wrap:wrap;min-height:28px}
+.foot .meta{font-family:var(--font-mono);font-size:11px;margin-right:auto;font-variant-numeric:tabular-nums}
+.tbtn{border:0;background:transparent;color:var(--muted);font-size:12.5px;padding:4px 8px;border-radius:6px;cursor:pointer;display:inline-flex;gap:4px;align-items:center}
+.tbtn:hover{background:var(--sunk);color:var(--fg)}
+.tbtn svg{width:15px;height:15px}
+.typing{display:inline-flex;gap:4px;padding:8px 0}
+.typing i{width:6px;height:6px;border-radius:50%;background:var(--muted);opacity:.35;animation:blink 1.2s infinite}
+.typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
+@keyframes blink{50%{opacity:1}}
+.cmp-cap{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-bottom:6px;font-family:var(--font-mono)}
+.cmp{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;margin-inline:-16px;padding:0 16px 6px;scrollbar-width:thin}
+.card{flex:0 0 86%;scroll-snap-align:center;border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:12px 14px 8px;min-width:0}
+.card .md{font-size:14.5px}
+.card .foot .meta{flex-basis:100%;margin-right:0}
+.card .foot .meta+.tbtn{margin-left:-8px}
+@media (min-width:760px){
+  .cmp{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));overflow:visible;margin-inline:0;padding:0}
+  .cmp-cap .swipe{display:none}
+}
+
+/* empty state */
+.empty{display:flex;flex-direction:column;gap:14px;padding-top:5vh}
+.eyebrow{font-family:var(--font-mono);font-size:11.5px;color:var(--muted);letter-spacing:.02em}
+.empty h1{font-size:23px;font-weight:600;margin:0;letter-spacing:-.01em;line-height:1.35;text-wrap:balance}
+.empty .lead{margin:0;color:var(--muted);max-width:34em}
+.setup{display:flex;align-items:center;gap:12px;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:14px;cursor:pointer;width:100%}
+.setup>span:nth-child(2){flex:1;min-width:0}
+.setup b{display:block;font-weight:600}
+.setup small{display:block;color:var(--muted);font-size:12.5px}
+.setup svg{width:18px;height:18px;color:var(--muted);flex:none}
+.sec{font-size:12.5px;font-weight:600;color:var(--muted);margin:0}
+.starts{display:flex;flex-wrap:wrap;gap:8px}
+.start{border:1px solid var(--line);background:transparent;border-radius:999px;padding:7px 14px;font-size:13.5px;cursor:pointer;color:var(--fg)}
+.start:hover{background:var(--surface)}
+.hint{font-size:12.5px;color:var(--muted);margin:4px 0 0;line-height:1.6}
+
+/* composer */
+.composer{flex:none;border-top:1px solid var(--line);background:var(--surface);padding:8px max(10px,env(safe-area-inset-right,0px)) calc(8px + env(safe-area-inset-bottom,0px)) max(10px,env(safe-area-inset-left,0px))}
+.composer-in{max-width:760px;margin:0 auto}
+.atts{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 8px}
+.att{display:flex;align-items:center;gap:8px;flex:none;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:5px 4px 5px 10px;font-size:12.5px;max-width:250px}
+.att>span{min-width:0;display:flex;flex-direction:column;line-height:1.35}
+.att .an{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.att small{color:var(--muted);font-family:var(--font-mono);font-size:10.5px;white-space:nowrap}
+.att img{width:32px;height:32px;object-fit:cover;border-radius:6px;flex:none}
+.att button{border:0;background:none;width:28px;height:28px;border-radius:6px;cursor:pointer;color:var(--muted);display:grid;place-items:center;flex:none}
+.att button svg{width:15px;height:15px}
+.crow{display:flex;align-items:flex-end;gap:2px}
+#input{flex:1;min-width:0;resize:none;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:21px;padding:9px 15px;font:16px/1.45 var(--font-body);max-height:40vh;min-height:42px;margin:0 4px}
+#input::placeholder{color:var(--muted)}
+.send{width:42px;height:42px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-fg);display:grid;place-items:center;flex:none;cursor:pointer}
+.send svg{width:20px;height:20px}
+.send.stop{background:var(--fg);color:var(--bg)}
+
+/* toast */
+.toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 112px);z-index:50;background:var(--fg);color:var(--bg);font-size:13.5px;line-height:1.5;padding:9px 14px;border-radius:12px;max-width:min(92vw,520px);box-shadow:0 6px 24px rgb(0 0 0 / .2);white-space:pre-wrap}
+
+/* sheets */
+dialog{border:0;padding:0;background:var(--surface);color:var(--fg);width:100%;max-width:640px;max-height:92dvh;margin:auto auto 0;border-radius:18px 18px 0 0;box-shadow:0 -8px 30px rgb(0 0 0 / .2);overscroll-behavior:contain}
+dialog::backdrop{background:rgb(8 12 10 / .45)}
+@media (min-width:700px){dialog{margin:auto;border-radius:18px}}
+dialog.drawer{margin:0 auto 0 0;height:100%;max-height:100%;width:min(86vw,340px);border-radius:0 18px 18px 0}
+.sheet{display:flex;flex-direction:column;max-height:92dvh}
+.drawer .sheet{height:100%;max-height:100%;padding-top:env(safe-area-inset-top,0px)}
+.sheet-head{display:flex;align-items:center;gap:6px;padding:12px 10px 10px 18px;border-bottom:1px solid var(--line);flex:none}
+.sheet-head h2{flex:1;margin:0;font-size:16px;font-weight:600}
+.sheet-body{overflow-y:auto;padding:16px 18px calc(22px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:18px}
+section.blk{display:flex;flex-direction:column;gap:10px}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.lbl{font-size:12.5px;font-weight:500;color:var(--muted)}
+.in{font:16px/1.4 var(--font-body);border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:10px;padding:10px 12px;width:100%;min-width:0}
+.in.mono{font-family:var(--font-mono)}
+textarea.in{resize:vertical;line-height:1.55}
+.inrow{display:flex;gap:6px}
+.inrow .in{flex:1}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 14px;font-weight:500;cursor:pointer;font-size:14px;color:var(--fg);flex:none}
+.btn:hover{background:var(--sunk)}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.btn.danger{color:var(--danger)}
+.btn.small{padding:6px 10px;font-size:13px}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.btns .btn{flex:1}
+.note{font-size:12.5px;color:var(--muted);margin:0;line-height:1.6}
+.toggle{display:flex;gap:10px;align-items:center;font-size:14.5px;cursor:pointer}
+.toggle input{width:20px;height:20px;accent-color:var(--accent);flex:none;margin:0}
+.toggle small{display:block;font-size:12px;color:var(--muted)}
+.list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.li{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--surface);border:0;border-top:1px solid var(--line);text-align:left;cursor:pointer;width:100%;color:var(--fg)}
+.li:first-child{border-top:0}
+.li:hover{background:var(--sunk)}
+.li.cur{background:var(--accent-soft)}
+.li-main{flex:1;min-width:0}
+.li-main b{display:block;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li-main small{display:block;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li>svg{width:16px;height:16px;color:var(--muted);flex:none}
+.badge{font-size:11px;padding:1px 8px;border-radius:999px;background:var(--sunk);color:var(--muted);white-space:nowrap;flex:none}
+.badge.warn{color:var(--warn);background:color-mix(in srgb,var(--warn) 14%,transparent)}
+.badge.acc{color:var(--accent);background:var(--accent-soft)}
+details.guide{border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+details.guide summary{cursor:pointer;font-size:14px;font-weight:500}
+details.guide ol{margin:10px 0;padding-left:1.3em;font-size:13.5px;line-height:1.65}
+details.guide li{margin:.3em 0}
+details.adv summary{cursor:pointer;font-size:13.5px;color:var(--muted)}
+details.adv[open] summary{margin-bottom:8px}
+.test{font-size:13px;white-space:pre-wrap;border-radius:10px;padding:10px 12px;background:var(--sunk);word-break:break-word}
+.test.ok{color:var(--accent)}
+.test.bad{color:var(--danger)}
+.mlist{display:flex;flex-wrap:wrap;gap:6px;max-height:168px;overflow:auto}
+.mopt{font-family:var(--font-mono);font-size:12px;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:8px;padding:4px 8px;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.confirm{display:flex;flex-direction:column;gap:8px;border:1px solid var(--danger);border-radius:10px;padding:10px 12px;font-size:13.5px}
+.tpl{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.tpl-main{display:block;width:100%;text-align:left;border:0;background:var(--surface);padding:12px 14px;cursor:pointer;color:var(--fg)}
+.tpl-main:hover{background:var(--sunk)}
+.tpl-main b{display:block;font-weight:600;margin-bottom:2px}
+.tpl-main span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--muted);font-size:13px;line-height:1.55;white-space:pre-line}
+.tpl-act{display:flex;border-top:1px solid var(--line)}
+.tpl-act button{flex:1;border:0;background:var(--surface);padding:9px;font-size:13px;color:var(--muted);cursor:pointer}
+.tpl-act button:hover{color:var(--fg);background:var(--sunk)}
+.tpl-act button+button{border-left:1px solid var(--line)}
+.presets{display:flex;gap:6px;flex-wrap:wrap}
+@media (prefers-reduced-motion: reduce){.typing i{animation:none;opacity:.7}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="top">
+    <div class="top-row">
+      <button class="ibtn" id="btnDrawer" aria-label="대화 목록"></button>
+      <button class="title" id="btnThread" aria-label="대화 설정"><b id="threadTitle">새 대화</b><small id="threadSub" hidden></small></button>
+      <div class="seg" role="group" aria-label="모드">
+        <button id="modeChat" aria-pressed="true">대화</button>
+        <button id="modeCmp" aria-pressed="false">비교</button>
+      </div>
+      <button class="ibtn" id="btnSettings" aria-label="설정"></button>
+    </div>
+    <div class="rail" id="rail" role="group" aria-label="모델 선택"></div>
+  </header>
+  <main class="scroll" id="scroll"><div class="msgs" id="msgs"></div></main>
+  <footer class="composer">
+    <div class="composer-in">
+      <div class="atts" id="atts" hidden></div>
+      <div class="crow">
+        <button class="ibtn" id="btnAttach" aria-label="파일 첨부"></button>
+        <button class="ibtn" id="btnTpl" aria-label="프롬프트 템플릿"></button>
+        <textarea id="input" rows="1" placeholder="메시지 입력" enterkeyhint="enter"></textarea>
+        <button class="send" id="btnSend" aria-label="보내기"></button>
+      </div>
+    </div>
+    <input type="file" id="file" multiple hidden accept=".pdf,.docx,.txt,.md,.markdown,.csv,.tsv,.json,.html,.htm,.xml,.srt,.vtt,.log,image/*">
+  </footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<dialog class="drawer" id="dlgDrawer" aria-label="대화 목록">
+  <div class="sheet">
+    <div class="sheet-head"><h2>대화</h2><button class="btn small" id="btnNew">새 대화</button><button class="ibtn" data-close aria-label="닫기"></button></div>
+    <div class="sheet-body" id="drawerBody"></div>
+  </div>
+</dialog>
+
+<dialog id="dlgSettings" aria-label="설정">
+  <div class="sheet">
+    <div class="sheet-head"><h2>설정</h2><button class="ibtn" data-close aria-label="닫기"></button></div>
+    <div class="sheet-body" id="settingsBody"></div>
+  </div>
+</dialog>
+
+<dialog id="dlgEp" aria-label="모델 편집">
+  <div class="sheet">
+    <div class="sheet-head"><h2 id="epTitle">모델 추가</h2><button class="ibtn" data-close aria-label="닫기"></button></div>
+    <div class="sheet-body" id="epBody"></div>
+  </div>
+</dialog>
+
+<dialog id="dlgTpl" aria-label="프롬프트 템플릿">
+  <div class="sheet">
+    <div class="sheet-head"><h2 id="tplTitle">프롬프트 템플릿</h2><button class="ibtn" data-close aria-label="닫기"></button></div>
+    <div class="sheet-body" id="tplBody"></div>
+  </div>
+</dialog>
+
+<dialog id="dlgThread" aria-label="대화 설정">
+  <div class="sheet">
+    <div class="sheet-head"><h2>대화 설정</h2><button class="ibtn" data-close aria-label="닫기"></button></div>
+    <div class="sheet-body" id="threadBody"></div>
+  </div>
+</dialog>
+
+<script type="text/plain" id="proxySrc">// 모델 작업실 · CORS 프록시 (Cloudflare Worker)
+// 1) 아래 ALLOWED_HOSTS에 호출할 API 도메인을 넣으세요. 목록에 없는 주소는 거부합니다.
+// 2) Worker 설정 > Variables and Secrets 에서 PROXY_KEY 라는 이름으로 임의의 긴 문자열을 Secret으로 추가하세요.
+//    모델 작업실 설정의 '프록시 키' 칸에 같은 값을 넣어야 호출이 통과합니다.
+const ALLOWED_HOSTS = [
+  "api.friendli.ai",
+  "openrouter.ai",
+  "api.openai.com",
+  "generativelanguage.googleapis.com"
+];
+
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Target-URL, X-Proxy-Key",
+  "Access-Control-Max-Age": "86400"
+};
+
+function reply(status, text) {
+  return new Response(text, {
+    status: status,
+    headers: Object.assign({ "Content-Type": "text/plain; charset=utf-8" }, CORS)
+  });
+}
+
+export default {
+  async fetch(request, env) {
+    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
+    if (!env.PROXY_KEY) return reply(500, "Worker에 PROXY_KEY가 설정되지 않았습니다.");
+    if (request.headers.get("X-Proxy-Key") !== env.PROXY_KEY) return reply(401, "프록시 키가 맞지 않습니다.");
+
+    let target;
+    try { target = new URL(request.headers.get("X-Target-URL") || ""); }
+    catch (e) { return reply(400, "X-Target-URL 헤더가 필요합니다."); }
+    if (target.protocol !== "https:" || ALLOWED_HOSTS.indexOf(target.hostname) === -1) {
+      return reply(403, "프록시 허용 목록에 없는 주소입니다: " + target.hostname);
+    }
+
+    const headers = new Headers();
+    ["authorization", "content-type", "accept"].forEach(function (h) {
+      const v = request.headers.get(h);
+      if (v) headers.set(h, v);
+    });
+
+    const upstream = await fetch(target.toString(), {
+      method: request.method,
+      headers: headers,
+      body: request.method === "GET" || request.method === "HEAD" ? undefined : request.body
+    });
+
+    const out = new Headers(upstream.headers);
+    Object.keys(CORS).forEach(function (k) { out.set(k, CORS[k]); });
+    return new Response(upstream.body, { status: upstream.status, headers: out });
+  }
+};
+</script>
+
+<script>
+'use strict';
+/* ---------- helpers ---------- */
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
+const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-5);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmt = n => Number(n || 0).toLocaleString('ko-KR');
+const P = {
+  menu: '<path d="M4 7h16M4 12h16M4 17h10"/>',
+  sliders: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
+  clip: '<path d="M20 11.4 12.4 19a5 5 0 0 1-7.1-7.1l8-8a3.4 3.4 0 0 1 4.8 4.8l-8 8a1.7 1.7 0 0 1-2.4-2.4l7.3-7.3"/>',
+  tpl: '<path d="M7 4h10a1 1 0 0 1 1 1v15l-6-3.6L6 20V5a1 1 0 0 1 1-1z"/>',
+  send: '<path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/>',
+  stop: '<rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor" stroke="none"/>',
+  close: '<path d="M6 6l12 12M18 6 6 18"/>',
+  copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+  redo: '<path d="M20 12a8 8 0 1 1-2.4-5.7M20 4.5V9h-4.5"/>',
+  chev: '<path d="m9 6 6 6-6 6"/>',
+  back: '<path d="m15 6-6 6 6 6"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>'
+};
+const svg = (p, w = 1.8) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+
+class AppError extends Error {}
+
+/* ---------- storage (IndexedDB, falls back to memory) ---------- */
+const store = {
+  db: null,
+  open() {
+    return new Promise(res => {
+      try {
+        const r = indexedDB.open('model-workroom', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('kv');
+        r.onsuccess = () => { this.db = r.result; res(true); };
+        r.onerror = () => res(false);
+        r.onblocked = () => res(false);
+      } catch (e) { res(false); }
+    });
+  },
+  get(k) {
+    return new Promise(res => {
+      if (!this.db) return res(null);
+      try {
+        const q = this.db.transaction('kv').objectStore('kv').get(k);
+        q.onsuccess = () => res(q.result ?? null);
+        q.onerror = () => res(null);
+      } catch (e) { res(null); }
+    });
+  },
+  set(k, v) {
+    return new Promise(res => {
+      if (!this.db) return res(false);
+      try {
+        const tx = this.db.transaction('kv', 'readwrite');
+        tx.objectStore('kv').put(v, k);
+        tx.oncomplete = () => res(true);
+        tx.onerror = tx.onabort = () => res(false);
+      } catch (e) { res(false); }
+    });
+  }
+};
+
+/* ---------- defaults ---------- */
+const PRESETS = [
+  { key: 'friendli', name: 'K-EXAONE · Friendli', baseUrl: 'https://api.friendli.ai/serverless/v1', model: 'LGAI-EXAONE/K-EXAONE-236B-A23B', hint: '키 발급: Friendli Suite > Personal Settings > API Keys. 모델 ID는 콘솔에서 확인하세요.' },
+  { key: 'openrouter', name: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1', model: '', hint: '키 발급: openrouter.ai/keys. 모델 ID는 "목록"으로 불러올 수 있습니다.' },
+  { key: 'openai', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', model: '', hint: '키 발급: platform.openai.com/api-keys' },
+  { key: 'gemini', name: 'Gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', model: '', hint: '키 발급: aistudio.google.com/apikey' },
+  { key: 'custom', name: '', baseUrl: '', model: '', hint: 'OpenAI 호환 /chat/completions 를 제공하는 주소면 연결됩니다. 주소는 /v1 까지만 입력하세요.' }
+];
+const DEFAULT_TEMPLATES = [
+  { title: '보도자료 문장 점검', body: '아래 보도자료 초안에서 사실관계가 모호한 표현, 근거 없는 최상급 수식어, 주술 호응 오류를 찾아 표로 정리하고 각각 수정안을 제시해 주세요.\n\n{{본문}}' },
+  { title: '학술 문단 다듬기', body: '다음 학위논문 문단을 학술적 문체로 다듬어 주세요. 주장과 의미는 바꾸지 말고, 고친 부분과 이유를 함께 알려 주세요.\n\n{{본문}}' },
+  { title: '국문 → 영문 보도자료', body: '다음 국문 보도자료를 해외 매체 배포용 영문으로 번역해 주세요. 고유명사, 수치, 인용문의 의미는 원문 그대로 유지하세요.\n\n{{본문}}' }
+];
+const TEXT_EXT = ['txt', 'md', 'markdown', 'csv', 'tsv', 'json', 'html', 'htm', 'xml', 'srt', 'vtt', 'log'];
+const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const MAMMOTH = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js';
+const COLORS = ['--m1', '--m2', '--m3', '--m4'];
+
+function newEndpoint(p = PRESETS[4]) {
+  return { id: uid(), name: p.name, baseUrl: p.baseUrl, apiKey: '', model: p.model, temperature: '', maxTokens: '', extra: '', stream: true, useProxy: false };
+}
+function seedState() {
+  const ep = newEndpoint(PRESETS[0]);
+  return {
+    version: 1, endpoints: [ep], threads: [],
+    templates: DEFAULT_TEMPLATES.map(t => ({ id: uid(), ...t })),
+    settings: { proxyUrl: '', proxyKey: '', active: ep.id, compare: [ep.id], theme: 'system' },
+    current: null
+  };
+}
+
+/* ---------- state ---------- */
+let S = seedState();
+let pending = [];
+let busy = null;
+let stick = true;
+let saveTimer = null;
+
+function normalize() {
+  S.endpoints = Array.isArray(S.endpoints) ? S.endpoints : [];
+  S.threads = Array.isArray(S.threads) ? S.threads : [];
+  S.templates = Array.isArray(S.templates) ? S.templates : [];
+  S.settings = Object.assign({ proxyUrl: '', proxyKey: '', active: null, compare: [], theme: 'system' }, S.settings || {});
+  const ids = new Set(S.endpoints.map(e => e.id));
+  S.settings.compare = (S.settings.compare || []).filter(id => ids.has(id));
+  if (!ids.has(S.settings.active)) S.settings.active = S.endpoints[0]?.id ?? null;
+  S.threads.forEach(t => {
+    t.messages = Array.isArray(t.messages) ? t.messages : [];
+    t.messages.forEach(m => {
+      const rs = m.role === 'group' ? m.replies : (m.role === 'assistant' ? [m] : []);
+      rs.forEach(r => { if (r.status === 'loading' || r.status === 'streaming') { r.status = r.content ? 'stopped' : 'error'; if (!r.content) r.error = '응답이 끝나기 전에 앱이 닫혔습니다.'; } });
+    });
+  });
+}
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    if (!store.db) return;
+    const ok = await store.set('state', S);
+    if (!ok) toast('저장하지 못했습니다. 기기 저장 공간을 확인하거나 오래된 대화를 지우세요.');
+  }, 250);
+}
+const getEp = id => S.endpoints.find(e => e.id === id);
+const epColor = id => { const i = S.endpoints.findIndex(e => e.id === id); return i < 0 ? '--muted' : COLORS[i % COLORS.length]; };
+const currentThread = () => S.threads.find(t => t.id === S.current);
+
+function newThread(mode = 'chat') {
+  S.threads = S.threads.filter(t => t.messages.length);
+  const t = { id: uid(), title: '새 대화', mode, system: '', messages: [], created: Date.now(), updated: Date.now() };
+  S.threads.unshift(t);
+  S.current = t.id;
+  save();
+  return t;
+}
+
+/* ---------- UI utils ---------- */
+let toastTimer;
+function toast(msg, ms = 3000) {
+  const el = $('#toast');
+  el.textContent = msg; el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, ms);
+}
+function openDlg(id) { const d = $('#' + id); if (!d.open) d.showModal(); return d; }
+function closeDlg(id) { const d = $('#' + id); if (d.open) d.close(); }
+async function copyText(s) {
+  try { await navigator.clipboard.writeText(s); toast('복사했습니다'); }
+  catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = s; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    let ok = false; try { ok = document.execCommand('copy'); } catch (e2) {}
+    ta.remove();
+    toast(ok ? '복사했습니다' : '복사하지 못했습니다. 길게 눌러 직접 선택해 주세요.');
+  }
+}
+function timeLabel(ts) {
+  const d = new Date(ts), n = new Date();
+  if (d.toDateString() === n.toDateString()) return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return `${d.getMonth() + 1}월 ${d.getDate()}일`;
+}
+const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+function md(s) {
+  if (window.marked && window.DOMPurify) {
+    try { return DOMPurify.sanitize(marked.parse(s, { gfm: true, breaks: true })); } catch (e) {}
+  }
+  return mdLite(s);
+}
+/* Fallback renderer for when the CDN is unreachable (e.g. blocked on a corporate network). Escapes first, then adds tags. */
+function mdLite(src) {
+  const lines = String(src).replace(/\r/g, '').split('\n');
+  const out = [];
+  const inline = s => esc(s)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>');
+  const isRow = l => /^\s*\|.*\|\s*$/.test(l);
+  const isSep = l => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l);
+  const isItem = l => /^\s*([-*+]|\d+[.)])\s+/.test(l);
+  const isBlockStart = l => /^```/.test(l) || /^#{1,6}\s/.test(l) || /^>/.test(l) || isItem(l) || isRow(l);
+  let i = 0;
+  while (i < lines.length) {
+    const l = lines[i];
+    let m;
+    if (/^```/.test(l)) {
+      const buf = []; i++;
+      while (i < lines.length && !/^```/.test(lines[i])) buf.push(lines[i++]);
+      i++;
+      out.push('<pre><code>' + esc(buf.join('\n')) + '</code></pre>');
+    } else if (isRow(l) && i + 1 < lines.length && isSep(lines[i + 1])) {
+      const row = r => r.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
+      const head = row(l); i += 2;
+      const body = [];
+      while (i < lines.length && isRow(lines[i])) body.push(row(lines[i++]));
+      out.push('<table><thead><tr>' + head.map(c => `<th>${inline(c)}</th>`).join('') + '</tr></thead><tbody>' +
+        body.map(r => '<tr>' + r.map(c => `<td>${inline(c)}</td>`).join('') + '</tr>').join('') + '</tbody></table>');
+    } else if ((m = l.match(/^(#{1,6})\s+(.*)$/))) {
+      const lv = Math.min(m[1].length + 1, 4);
+      out.push(`<h${lv}>${inline(m[2])}</h${lv}>`); i++;
+    } else if (isItem(l)) {
+      const ordered = /^\s*\d/.test(l);
+      const items = [];
+      while (i < lines.length && isItem(lines[i])) items.push(lines[i++].replace(/^\s*([-*+]|\d+[.)])\s+/, ''));
+      const t = ordered ? 'ol' : 'ul';
+      out.push(`<${t}>` + items.map(x => `<li>${inline(x)}</li>`).join('') + `</${t}>`);
+    } else if (/^>/.test(l)) {
+      const buf = [];
+      while (i < lines.length && /^>/.test(lines[i])) buf.push(lines[i++].replace(/^>\s?/, ''));
+      out.push('<blockquote>' + buf.map(inline).join('<br>') + '</blockquote>');
+    } else if (/^\s*(-{3,}|\*{3,})\s*$/.test(l)) {
+      out.push('<hr>'); i++;
+    } else if (!l.trim()) {
+      i++;
+    } else {
+      const buf = [lines[i++]];
+      while (i < lines.length && lines[i].trim() && !isBlockStart(lines[i])) buf.push(lines[i++]);
+      out.push('<p>' + buf.map(inline).join('<br>') + '</p>');
+    }
+  }
+  return out.join('');
+}
+const scrollEl = () => $('#scroll');
+function nearBottom() { const s = scrollEl(); return s.scrollHeight - s.scrollTop - s.clientHeight < 140; }
+function scrollBottom(force) { if (force || stick) { const s = scrollEl(); s.scrollTop = s.scrollHeight; } }
+function autosize() {
+  const ta = $('#input');
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight + 2, window.innerHeight * 0.4) + 'px';
+}
+const _scripts = {};
+function loadScript(src) {
+  if (!_scripts[src]) {
+    _scripts[src] = new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = src; s.onload = res;
+      s.onerror = () => { delete _scripts[src]; s.remove(); rej(new Error('필요한 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하세요.')); };
+      document.head.appendChild(s);
+    });
+  }
+  return _scripts[src];
+}
+function applyTheme() {
+  const t = S.settings.theme;
+  if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+  else delete document.documentElement.dataset.theme;
+}
+
+/* ---------- rendering ---------- */
+function renderAll() { renderTop(); renderRail(true); renderMsgs(); renderAtts(); renderSend(); }
+
+function renderTop() {
+  const th = currentThread();
+  $('#threadTitle').textContent = th.title || '새 대화';
+  const sub = $('#threadSub');
+  sub.hidden = !th.system;
+  sub.textContent = th.system ? '시스템 프롬프트 적용 중' : '';
+  $('#modeChat').setAttribute('aria-pressed', String(th.mode !== 'compare'));
+  $('#modeCmp').setAttribute('aria-pressed', String(th.mode === 'compare'));
+  $('#input').placeholder = th.mode === 'compare' ? '여러 모델에 같은 질문 보내기' : '메시지 입력';
+}
+
+function renderRail(reveal) {
+  const th = currentThread();
+  const rail = $('#rail');
+  if (!S.endpoints.length) {
+    rail.innerHTML = `<button class="chip ghost" data-add-ep>${svg(P.plus)} 모델 등록</button>`;
+    return;
+  }
+  const cmp = th.mode === 'compare';
+  rail.innerHTML = S.endpoints.map(e => {
+    const on = cmp ? S.settings.compare.includes(e.id) : S.settings.active === e.id;
+    return `<button class="chip" data-pick="${e.id}" aria-pressed="${on}" style="--c:var(${epColor(e.id)})">
+      <span class="dot"></span><b>${esc(e.name || '이름 없음')}</b>${e.apiKey ? `<span class="mono">${esc(shortModel(e.model))}</span>` : '<span class="warnmark">키 필요</span>'}
+    </button>`;
+  }).join('') + `<button class="chip ghost" data-add-ep aria-label="모델 추가">${svg(P.plus)}</button>`;
+  if (reveal) {
+    const on = rail.querySelector('[aria-pressed="true"]');
+    if (on) {
+      const x = on.offsetLeft - rail.offsetLeft;
+      if (x < rail.scrollLeft || x + on.offsetWidth > rail.scrollLeft + rail.clientWidth) rail.scrollLeft = Math.max(0, x - 16);
+    } else rail.scrollLeft = 0;
+  }
+}
+const shortModel = m => { const s = String(m || ''); const i = s.lastIndexOf('/'); return i >= 0 ? s.slice(i + 1) : s; };
+
+function emptyHTML(th) {
+  const eps = S.endpoints;
+  const needKey = eps.find(e => !e.apiKey);
+  const cmp = th.mode === 'compare';
+  const eyebrow = `POST /chat/completions · 등록된 모델 ${eps.length}개`;
+  let setup = '';
+  if (!eps.length) setup = `<button class="setup" data-add-ep><span class="dot"></span><span><b>모델 등록하기</b><small>주소, API 키, 모델 ID만 있으면 됩니다</small></span>${svg(P.chev)}</button>`;
+  else if (needKey) setup = `<button class="setup" data-edit-ep="${needKey.id}"><span class="dot" style="--c:var(${epColor(needKey.id)})"></span><span><b>${esc(needKey.name || '모델')}에 API 키 입력</b><small>키는 이 기기 브라우저에만 저장됩니다</small></span>${svg(P.chev)}</button>`;
+  else if (cmp && eps.length < 2) setup = `<button class="setup" data-add-ep><span class="dot"></span><span><b>비교할 모델 하나 더 등록</b><small>비교 모드는 2개 이상부터 동작합니다</small></span>${svg(P.chev)}</button>`;
+  const starts = S.templates.slice(0, 4).map(t => `<button class="start" data-tpl="${t.id}">${esc(t.title)}</button>`).join('');
+  return `<div class="empty">
+    <div class="eyebrow">${esc(eyebrow)}</div>
+    <h1>${cmp ? '같은 질문을 여러 모델에 보내고 답을 나란히 봅니다' : '등록한 API 모델과 바로 작업하세요'}</h1>
+    <p class="lead">${cmp ? '위 줄에서 비교할 모델을 2개 이상 켜고 질문하세요. 휴대폰에서는 답변 카드를 옆으로 넘겨 비교합니다.' : '파일을 첨부해 요약·검토를 맡기거나, 템플릿으로 자주 쓰는 지시문을 불러올 수 있습니다.'}</p>
+    ${setup}
+    ${starts ? `<div class="sec">템플릿으로 시작</div><div class="starts">${starts}</div>` : ''}
+    ${isStandalone() ? '' : '<p class="hint">홈 화면에 추가하면 앱처럼 열립니다.<br>iPhone: Safari 공유 버튼 → 홈 화면에 추가 · Android: Chrome 메뉴 → 홈 화면에 추가</p>'}
+  </div>`;
+}
+
+function fileChips(files) {
+  if (!files || !files.length) return '';
+  const imgs = files.filter(f => f.kind === 'image').map(f => `<img class="thumb" src="${f.dataUrl}" alt="${esc(f.name)}">`).join('');
+  const docs = files.filter(f => f.kind === 'text').map(f => `<span class="fchip">${esc(f.name)}<small>${esc(f.info || '')} · ${fmt(f.chars)}자</small></span>`).join('');
+  return `<div class="fchips">${imgs}${docs}</div>`;
+}
+function replyHTML(r, inGroup) {
+  return `<div class="reply${inGroup ? ' card' : ''}" data-rid="${r.id}">
+    <div class="reply-head"><span class="dot" style="--c:var(${epColor(r.endpointId)})"></span><span class="rname">${esc(r.label || '모델')}</span><span class="rmodel">${esc(r.model || '')}</span></div>
+    <details class="think" hidden><summary></summary><div></div></details>
+    <div class="md"></div>
+    <div class="err" hidden></div>
+    <div class="foot"></div>
+  </div>`;
+}
+function msgHTML(m) {
+  if (m.role === 'user') return `<div class="u">${fileChips(m.files)}${m.content ? `<div class="utext">${esc(m.content)}</div>` : ''}</div>`;
+  if (m.role === 'assistant') return replyHTML(m, false);
+  if (m.role === 'group') {
+    const n = m.replies.length;
+    return `<div class="group"><div class="cmp-cap"><span>${n}개 모델 응답</span>${n > 1 ? '<span class="swipe">옆으로 넘겨 비교 →</span>' : ''}</div><div class="cmp" style="--n:${n}">${m.replies.map(r => replyHTML(r, true)).join('')}</div></div>`;
+  }
+  return '';
+}
+function renderMsgs() {
+  const th = currentThread();
+  const box = $('#msgs');
+  box.classList.toggle('wide', th.mode === 'compare');
+  if (!th.messages.length) { box.innerHTML = emptyHTML(th); return; }
+  box.innerHTML = th.messages.map(msgHTML).join('');
+  th.messages.forEach(m => {
+    if (m.role === 'assistant') paintReply(m);
+    else if (m.role === 'group') m.replies.forEach(paintReply);
+  });
+  stick = true;
+  scrollBottom(true);
+}
+function isLastReply(r) {
+  const th = currentThread(); const last = th.messages[th.messages.length - 1];
+  if (!last) return false;
+  return last === r || (last.role === 'group' && last.replies.includes(r));
+}
+function paintReply(r) {
+  const el = document.querySelector(`[data-rid="${r.id}"]`);
+  if (!el) return;
+  const think = el.querySelector('.think');
+  if (r.reasoning) {
+    think.hidden = false;
+    think.querySelector('summary').textContent = `생각 과정 · ${fmt(r.reasoning.length)}자`;
+    think.querySelector('div').textContent = r.reasoning;
+  } else think.hidden = true;
+  const mdEl = el.querySelector('.md');
+  const waiting = (r.status === 'loading' || r.status === 'streaming') && !r.content;
+  mdEl.innerHTML = r.content ? md(r.content) : (waiting ? '<span class="typing" aria-label="응답 생성 중"><i></i><i></i><i></i></span>' : '');
+  const err = el.querySelector('.err');
+  err.hidden = !r.error; err.textContent = r.error || '';
+  const foot = el.querySelector('.foot');
+  if (r.status === 'loading' || r.status === 'streaming') { foot.innerHTML = `<span class="meta">${r.status === 'loading' ? '연결 중…' : '생성 중… ' + fmt(r.content.length) + '자'}</span>`; return; }
+  const parts = [];
+  if (r.status === 'stopped') parts.push('중단됨');
+  if (r.meta?.ms) parts.push((r.meta.ms / 1000).toFixed(1) + '초');
+  if (r.content) parts.push(fmt(r.content.length) + '자');
+  const u = r.meta?.usage;
+  if (u && (u.prompt_tokens != null || u.completion_tokens != null)) parts.push(`토큰 ${fmt(u.prompt_tokens)}→${fmt(u.completion_tokens)}`);
+  let btns = '';
+  if (r.content) btns += `<button class="tbtn" data-copy="${r.id}">${svg(P.copy)}복사</button>`;
+  if (isLastReply(r) && !busy) btns += `<button class="tbtn" data-regen="${r.id}">${svg(P.redo)}다시</button>`;
+  foot.innerHTML = `<span class="meta">${esc(parts.join(' · '))}</span>${btns}`;
+}
+const paintQueue = new Set(); let paintRaf = 0;
+function schedulePaint(r) {
+  paintQueue.add(r);
+  if (paintRaf) return;
+  paintRaf = requestAnimationFrame(() => {
+    paintRaf = 0;
+    paintQueue.forEach(paintReply); paintQueue.clear();
+    scrollBottom(false);
+  });
+}
+function renderAtts() {
+  const box = $('#atts');
+  box.hidden = !pending.length;
+  box.innerHTML = pending.map(p => `<div class="att">
+    ${p.kind === 'image' && p.dataUrl ? `<img src="${p.dataUrl}" alt="">` : ''}
+    <span><span class="an">${esc(p.name)}</span><small>${p.loading ? '읽는 중…' : esc(p.info || '') + (p.kind === 'text' ? ' · ' + fmt(p.chars) + '자' : '')}</small></span>
+    <button data-rm="${p.id}" aria-label="${esc(p.name)} 첨부 취소">${svg(P.close)}</button>
+  </div>`).join('');
+}
+function renderSend() {
+  const b = $('#btnSend');
+  b.classList.toggle('stop', !!busy);
+  b.innerHTML = busy ? svg(P.stop) : svg(P.send, 2.2);
+  b.setAttribute('aria-label', busy ? '생성 중단' : '보내기');
+}
+
+/* ---------- API ---------- */
+function statusHint(s) {
+  if (s === 401 || s === 403) return 'API 키 또는 권한을 확인하세요.';
+  if (s === 404) return '주소나 모델 ID를 확인하세요.';
+  if (s === 400 || s === 422) return '요청 형식을 받아들이지 않았습니다. 모델 ID와 추가 파라미터를 확인하세요.';
+  if (s === 429) return '호출 한도를 넘었습니다. 잠시 후 다시 시도하세요.';
+  if (s >= 500) return '모델 서버 쪽 오류입니다. 잠시 후 다시 시도하세요.';
+  return '요청이 실패했습니다.';
+}
+async function doFetch(ep, url, init) {
+  const headers = Object.assign({}, init.headers || {});
+  if (ep.apiKey) headers.Authorization = 'Bearer ' + ep.apiKey;
+  let target = url;
+  if (ep.useProxy) {
+    if (!S.settings.proxyUrl) throw new AppError('프록시 주소가 비어 있습니다. 설정 > CORS 프록시에서 입력하세요.');
+    target = S.settings.proxyUrl.trim();
+    headers['X-Target-URL'] = url;
+    if (S.settings.proxyKey) headers['X-Proxy-Key'] = S.settings.proxyKey;
+  }
+  try { return await fetch(target, Object.assign({}, init, { headers })); }
+  catch (e) {
+    if (e.name === 'AbortError' || e.name === 'TimeoutError') throw e;
+    throw new AppError(ep.useProxy
+      ? '프록시에 연결하지 못했습니다. 프록시 주소와 인터넷 연결을 확인하세요.'
+      : '엔드포인트에 연결하지 못했습니다.\n주소가 맞다면 이 서버가 브라우저 직접 호출(CORS)을 막고 있을 가능성이 큽니다. 모델 편집에서 "프록시 경유"를 켜 보세요.');
+  }
+}
+async function readError(res) {
+  let t = '';
+  try { t = await res.text(); } catch (e) {}
+  let msg = t;
+  try { const j = JSON.parse(t); msg = j.error?.message || j.message || j.detail || j.error || t; if (typeof msg !== 'string') msg = JSON.stringify(msg); } catch (e) {}
+  return new AppError(`HTTP ${res.status} · ${statusHint(res.status)}${msg ? '\n' + String(msg).slice(0, 600) : ''}`);
+}
+async function callEndpoint(ep, messages, { signal, onDelta }) {
+  const url = ep.baseUrl.trim().replace(/\/+$/, '') + '/chat/completions';
+  const body = { model: ep.model.trim(), messages, stream: ep.stream !== false };
+  if (ep.temperature !== '' && ep.temperature != null && !isNaN(+ep.temperature)) body.temperature = +ep.temperature;
+  if (ep.maxTokens !== '' && ep.maxTokens != null && +ep.maxTokens > 0) body.max_tokens = Math.round(+ep.maxTokens);
+  if (ep.extra && ep.extra.trim()) {
+    try { Object.assign(body, JSON.parse(ep.extra)); }
+    catch (e) { throw new AppError('추가 파라미터 JSON 형식이 올바르지 않습니다.'); }
+  }
+  const res = await doFetch(ep, url, {
+    method: 'POST', signal,
+    headers: { 'Content-Type': 'application/json', Accept: body.stream ? 'text/event-stream' : 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) throw await readError(res);
+  const ct = res.headers.get('content-type') || '';
+  if (!body.stream || ct.includes('application/json')) {
+    const j = await res.json();
+    if (j.error) throw new AppError(j.error.message || JSON.stringify(j.error));
+    const msg = j.choices?.[0]?.message || {};
+    onDelta(typeof msg.content === 'string' ? msg.content : '', msg.reasoning_content || msg.reasoning || '');
+    return { usage: j.usage || null };
+  }
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '', usage = null;
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let nl;
+    while ((nl = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (!line.startsWith('data:')) continue;
+      const data = line.slice(5).trim();
+      if (data === '[DONE]') return { usage };
+      let j; try { j = JSON.parse(data); } catch (e) { continue; }
+      if (j.error) throw new AppError(j.error.message || JSON.stringify(j.error));
+      const d = j.choices?.[0]?.delta || {};
+      const c = typeof d.content === 'string' ? d.content : '';
+      const rs = d.reasoning_content || d.reasoning || '';
+      if (c || rs) onDelta(c, rs);
+      if (j.usage) usage = j.usage;
+    }
+  }
+  return { usage };
+}
+
+function userContent(m) {
+  const files = m.files || [];
+  const texts = files.filter(f => f.kind === 'text').map(f => `[첨부 파일: ${f.name}]\n${f.text}\n[첨부 끝]`);
+  const body = [...texts, m.content].filter(Boolean).join('\n\n');
+  const imgs = files.filter(f => f.kind === 'image');
+  if (!imgs.length) return body;
+  return [{ type: 'text', text: body || '첨부한 이미지를 확인해 주세요.' }, ...imgs.map(f => ({ type: 'image_url', image_url: { url: f.dataUrl } }))];
+}
+function buildMessages(th, upto, epId) {
+  const out = [];
+  if (th.system && th.system.trim()) out.push({ role: 'system', content: th.system.trim() });
+  for (let i = 0; i < upto; i++) {
+    const m = th.messages[i];
+    let item = null;
+    if (m.role === 'user') item = { role: 'user', content: userContent(m) };
+    else if (m.role === 'assistant') { if (m.content && m.status !== 'error') item = { role: 'assistant', content: m.content }; }
+    else if (m.role === 'group') { const r = m.replies.find(x => x.endpointId === epId); if (r && r.content && r.status !== 'error') item = { role: 'assistant', content: r.content }; }
+    if (!item) continue;
+    const prev = out[out.length - 1];
+    if (prev && prev.role === item.role && prev.role !== 'system') {
+      if (typeof prev.content === 'string' && typeof item.content === 'string') prev.content += '\n\n' + item.content;
+      else {
+        const toParts = c => typeof c === 'string' ? [{ type: 'text', text: c }] : c;
+        prev.content = [...toParts(prev.content), ...toParts(item.content)];
+      }
+    } else out.push(item);
+  }
+  return out;
+}
+
+/* ---------- sending ---------- */
+function mkReply(e) { return { id: uid(), endpointId: e.id, label: e.name, model: e.model, content: '', reasoning: '', status: 'loading', meta: null, error: '' }; }
+
+async function send() {
+  if (busy) { busy.abort(); return; }
+  const th = currentThread();
+  const ta = $('#input');
+  const text = ta.value.trim();
+  if (pending.some(p => p.loading)) { toast('첨부 파일을 읽는 중입니다. 잠시만 기다려 주세요.'); return; }
+  if (!text && !pending.length) { ta.focus(); return; }
+  const targets = th.mode === 'compare'
+    ? S.settings.compare.map(getEp).filter(Boolean)
+    : [getEp(S.settings.active)].filter(Boolean);
+  if (!targets.length) { toast('먼저 모델을 등록하세요.'); openEp(null); return; }
+  if (th.mode === 'compare' && targets.length < 2) { toast('위 줄에서 비교할 모델을 2개 이상 켜 주세요.'); return; }
+  const bad = targets.find(e => !e.baseUrl.trim() || !e.model.trim());
+  if (bad) { toast(`${bad.name || '모델'}: 주소와 모델 ID를 입력하세요.`); openEp(bad.id); return; }
+  const nokey = targets.find(e => !e.apiKey);
+  if (nokey) { toast(`${nokey.name || '모델'}: API 키를 입력하세요.\n키가 필요 없는 서버라면 아무 값이나 넣으면 됩니다.`); openEp(nokey.id); return; }
+
+  th.messages.push({ role: 'user', content: text, files: pending.map(p => ({ name: p.name, kind: p.kind, text: p.text, dataUrl: p.dataUrl, info: p.info, chars: p.chars })) });
+  if (th.title === '새 대화') th.title = (text || pending[0].name).replace(/\s+/g, ' ').slice(0, 40);
+  pending = []; ta.value = ''; autosize();
+  let jobs;
+  if (th.mode === 'compare') {
+    const g = { role: 'group', id: uid(), replies: targets.map(mkReply) };
+    th.messages.push(g); jobs = g.replies;
+  } else {
+    const r = Object.assign(mkReply(targets[0]), { role: 'assistant' });
+    th.messages.push(r); jobs = [r];
+  }
+  th.updated = Date.now();
+  save();
+  renderTop(); renderAtts(); renderMsgs();
+  await runJobs(th, th.messages.length - 1, jobs);
+}
+async function runJobs(th, idx, jobs) {
+  busy = new AbortController();
+  const signal = busy.signal;
+  renderSend();
+  try { await Promise.all(jobs.map(r => runReply(th, idx, r, signal))); }
+  finally {
+    busy = null; renderSend();
+    th.updated = Date.now(); save();
+    if (currentThread() === th) jobs.forEach(paintReply);
+  }
+}
+async function runReply(th, idx, r, signal) {
+  const ep = getEp(r.endpointId);
+  r.content = ''; r.reasoning = ''; r.error = ''; r.meta = null; r.status = 'loading';
+  paintReply(r);
+  if (!ep) { r.status = 'error'; r.error = '삭제된 모델입니다.'; paintReply(r); return; }
+  const t0 = performance.now();
+  try {
+    const { usage } = await callEndpoint(ep, buildMessages(th, idx, ep.id), {
+      signal,
+      onDelta: (c, rs) => { r.content += c; r.reasoning += rs; r.status = 'streaming'; schedulePaint(r); }
+    });
+    r.status = 'done';
+    r.meta = { ms: performance.now() - t0, usage };
+    if (!r.content && !r.reasoning) r.error = '빈 응답이 왔습니다. 추론 모델이면 최대 출력 토큰을 늘려 보세요.';
+  } catch (e) {
+    r.meta = { ms: performance.now() - t0 };
+    if (e.name === 'AbortError') { r.status = r.content ? 'stopped' : 'error'; if (!r.content) r.error = '중단했습니다.'; }
+    else { r.status = 'error'; r.error = e.message || String(e); }
+  }
+  paintReply(r);
+}
+function findReply(id) {
+  const th = currentThread();
+  for (const m of th.messages) {
+    if (m.role === 'assistant' && m.id === id) return m;
+    if (m.role === 'group') { const r = m.replies.find(x => x.id === id); if (r) return r; }
+  }
+  return null;
+}
+async function regen(id) {
+  if (busy) return;
+  const th = currentThread();
+  const r = findReply(id);
+  if (!r || !isLastReply(r)) return;
+  const e = getEp(r.endpointId);
+  if (e) { r.label = e.name; r.model = e.model; }
+  renderMsgs();
+  await runJobs(th, th.messages.length - 1, [r]);
+}
+
+/* ---------- files ---------- */
+function downscale(file, max) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.naturalWidth * s));
+      c.height = Math.max(1, Math.round(img.naturalHeight * s));
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      res(c.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('이미지를 열지 못했습니다. JPG나 PNG로 바꿔 올려 주세요.')); };
+    img.src = url;
+  });
+}
+async function readPdf(f) {
+  await loadScript(PDFJS);
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+  const doc = await window.pdfjsLib.getDocument({ data: new Uint8Array(await f.arrayBuffer()) }).promise;
+  const pages = [];
+  for (let p = 1; p <= doc.numPages; p++) {
+    const page = await doc.getPage(p);
+    const tc = await page.getTextContent();
+    pages.push(tc.items.map(i => i.str + (i.hasEOL ? '\n' : '')).join(''));
+  }
+  return { text: pages.join('\n\n'), pages: doc.numPages };
+}
+async function readDocx(f) {
+  await loadScript(MAMMOTH);
+  const r = await window.mammoth.extractRawText({ arrayBuffer: await f.arrayBuffer() });
+  return r.value || '';
+}
+async function addFiles(list) {
+  for (const f of list) {
+    const item = { id: uid(), name: f.name, loading: true };
+    pending.push(item); renderAtts();
+    try {
+      const ext = (f.name.includes('.') ? f.name.split('.').pop() : '').toLowerCase();
+      if (f.type.startsWith('image/')) { item.kind = 'image'; item.dataUrl = await downscale(f, 1600); item.info = '이미지'; }
+      else if (ext === 'pdf' || f.type === 'application/pdf') { const r = await readPdf(f); item.kind = 'text'; item.text = r.text; item.info = `PDF ${r.pages}쪽`; }
+      else if (ext === 'docx') { item.kind = 'text'; item.text = await readDocx(f); item.info = 'DOCX'; }
+      else if (TEXT_EXT.includes(ext) || f.type.startsWith('text/')) { item.kind = 'text'; item.text = await f.text(); item.info = (ext || 'txt').toUpperCase(); }
+      else throw new Error('지원하지 않는 형식입니다. PDF, DOCX, TXT, MD, CSV, 이미지를 올려 주세요.');
+      if (item.kind === 'text') {
+        item.text = item.text.replace(/\u0000/g, '').replace(/[ \t]+\n/g, '\n').trim();
+        if (!item.text) throw new Error('텍스트를 추출하지 못했습니다. 스캔 이미지로 된 PDF일 수 있습니다.');
+        item.chars = item.text.length;
+        if (item.chars > 150000) toast(`${f.name}: ${fmt(item.chars)}자입니다. 모델의 입력 한도를 넘으면 오류가 날 수 있습니다.`, 4500);
+      }
+      item.loading = false;
+    } catch (err) {
+      pending = pending.filter(p => p !== item);
+      toast(`${f.name}\n${err.message || '파일을 읽지 못했습니다.'}`, 4500);
+    }
+    renderAtts();
+  }
+}
+
+/* ---------- drawer ---------- */
+function renderDrawer() {
+  const list = [...S.threads].sort((a, b) => b.updated - a.updated);
+  const body = $('#drawerBody');
+  if (!list.length) { body.innerHTML = '<p class="note">아직 대화가 없습니다.</p>'; return; }
+  body.innerHTML = `<div class="list">${list.map(t => `<button class="li${t.id === S.current ? ' cur' : ''}" data-tid="${t.id}">
+      <span class="li-main"><b>${esc(t.title || '새 대화')}</b><small>${timeLabel(t.updated)} · 메시지 ${t.messages.filter(m => m.role === 'user').length}개</small></span>
+      ${t.mode === 'compare' ? '<span class="badge acc">비교</span>' : ''}
+    </button>`).join('')}</div>`;
+}
+
+/* ---------- thread settings ---------- */
+function transcript(th) {
+  const out = [`# ${th.title}`];
+  if (th.system) out.push(`## 시스템 프롬프트\n${th.system}`);
+  th.messages.forEach(m => {
+    if (m.role === 'user') {
+      const names = (m.files || []).map(f => f.name).join(', ');
+      out.push(`## 나${names ? ` (첨부: ${names})` : ''}\n${m.content}`);
+    } else if (m.role === 'assistant') out.push(`## ${m.label} (${m.model})\n${m.content || m.error}`);
+    else if (m.role === 'group') m.replies.forEach(r => out.push(`## ${r.label} (${r.model})\n${r.content || r.error}`));
+  });
+  return out.join('\n\n');
+}
+function openThread() {
+  const th = currentThread();
+  $('#threadBody').innerHTML = `
+    <div class="field"><label class="lbl" for="thTitle">제목</label><input class="in" id="thTitle" value="${esc(th.title)}"></div>
+    <div class="field"><label class="lbl" for="thSys">시스템 프롬프트</label>
+      <textarea class="in" id="thSys" rows="6" placeholder="예: 당신은 IT 기업 홍보 담당자의 글을 검토하는 편집자입니다. 사실과 추측을 구분해 답하세요.">${esc(th.system)}</textarea>
+      <p class="note">이 대화의 모든 요청 맨 앞에 붙습니다. 템플릿 화면의 "시스템으로"로도 넣을 수 있습니다.</p></div>
+    <div class="btns"><button class="btn primary" id="thSave">저장</button><button class="btn" id="thCopy">대화 전체 복사</button></div>
+    <button class="btn danger" id="thDel">이 대화 삭제</button>
+    <div class="confirm" id="thDelConfirm" hidden><span>이 대화를 지웁니다. 되돌릴 수 없습니다.</span><div class="btns"><button class="btn danger" id="thDelYes">삭제</button><button class="btn" id="thDelNo">취소</button></div></div>`;
+  $('#thSave').onclick = () => {
+    th.title = $('#thTitle').value.trim() || '새 대화';
+    th.system = $('#thSys').value;
+    save(); renderTop(); closeDlg('dlgThread'); toast('저장했습니다');
+  };
+  $('#thCopy').onclick = () => copyText(transcript(th));
+  $('#thDel').onclick = () => { $('#thDelConfirm').hidden = false; $('#thDel').hidden = true; };
+  $('#thDelNo').onclick = () => { $('#thDelConfirm').hidden = true; $('#thDel').hidden = false; };
+  $('#thDelYes').onclick = () => {
+    if (busy) busy.abort();
+    S.threads = S.threads.filter(t => t !== th);
+    const next = [...S.threads].sort((a, b) => b.updated - a.updated)[0];
+    if (next) S.current = next.id; else newThread(th.mode);
+    save(); closeDlg('dlgThread'); renderAll(); toast('대화를 삭제했습니다');
+  };
+  openDlg('dlgThread');
+}
+
+/* ---------- templates ---------- */
+function renderTplList() {
+  $('#tplTitle').textContent = '프롬프트 템플릿';
+  $('#tplBody').innerHTML = `
+    <p class="note">누르면 입력창에 들어갑니다. 입력창에 이미 쓴 글이 있으면 템플릿의 <span class="mono">{{본문}}</span> 자리에 들어갑니다.</p>
+    ${S.templates.map(t => `<div class="tpl">
+      <button class="tpl-main" data-ins="${t.id}"><b>${esc(t.title)}</b><span>${esc(t.body)}</span></button>
+      <div class="tpl-act"><button data-sys="${t.id}">시스템으로</button><button data-tedit="${t.id}">편집</button></div>
+    </div>`).join('') || '<p class="note">템플릿이 없습니다.</p>'}
+    <button class="btn" data-tedit="">+ 새 템플릿</button>`;
+}
+function renderTplEdit(id) {
+  const t = S.templates.find(x => x.id === id) || { id: '', title: '', body: '' };
+  $('#tplTitle').textContent = t.id ? '템플릿 편집' : '새 템플릿';
+  $('#tplBody').innerHTML = `
+    <div class="field"><label class="lbl" for="tTitle">이름</label><input class="in" id="tTitle" value="${esc(t.title)}" placeholder="예: 임원 메시지 톤 점검"></div>
+    <div class="field"><label class="lbl" for="tBody">내용</label><textarea class="in" id="tBody" rows="9" placeholder="지시문을 쓰고, 검토할 글이 들어갈 자리에 {{본문}}을 넣으세요.">${esc(t.body)}</textarea></div>
+    <div class="btns"><button class="btn primary" id="tSave">저장</button><button class="btn" id="tCancel">목록으로</button></div>
+    ${t.id ? '<button class="btn danger" id="tDel">템플릿 삭제</button>' : ''}`;
+  $('#tSave').onclick = () => {
+    const title = $('#tTitle').value.trim(), body = $('#tBody').value;
+    if (!title || !body.trim()) { toast('이름과 내용을 모두 입력하세요.'); return; }
+    if (t.id) Object.assign(t, { title, body }); else S.templates.push({ id: uid(), title, body });
+    save(); renderTplList(); if (!currentThread().messages.length) renderMsgs();
+  };
+  $('#tCancel').onclick = renderTplList;
+  if (t.id) $('#tDel').onclick = () => { S.templates = S.templates.filter(x => x !== t); save(); renderTplList(); toast('템플릿을 삭제했습니다'); };
+}
+function insertTemplate(id) {
+  const t = S.templates.find(x => x.id === id); if (!t) return;
+  const ta = $('#input');
+  const cur = ta.value.trim();
+  const ph = '{{본문}}';
+  let selStart = null;
+  if (t.body.includes(ph)) {
+    if (cur) ta.value = t.body.replace(ph, cur);
+    else { ta.value = t.body; selStart = t.body.indexOf(ph); }
+  } else ta.value = cur ? cur + '\n\n' + t.body : t.body;
+  closeDlg('dlgTpl');
+  autosize();
+  ta.focus();
+  if (selStart != null) ta.setSelectionRange(selStart, selStart + ph.length);
+}
+
+/* ---------- endpoint editor ---------- */
+let epDraftId = null;
+function openEp(id) {
+  epDraftId = id;
+  const e = id ? getEp(id) : newEndpoint(PRESETS[4]);
+  $('#epTitle').textContent = id ? '모델 편집' : '모델 추가';
+  $('#epBody').innerHTML = `
+    ${id ? '' : `<div class="field"><span class="lbl">빠른 입력</span><div class="presets">${PRESETS.slice(0, 4).map(p => `<button class="chip" data-preset="${p.key}" aria-pressed="false"><b>${esc(p.name)}</b></button>`).join('')}</div></div>`}
+    <div class="field"><label class="lbl" for="epName">이름</label><input class="in" id="epName" value="${esc(e.name)}" placeholder="예: EXAONE 4.5"></div>
+    <div class="field"><label class="lbl" for="epUrl">Base URL</label><input class="in mono" id="epUrl" value="${esc(e.baseUrl)}" placeholder="https://…/v1" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false"><p class="note" id="epHint">${esc(PRESETS.find(p => p.baseUrl && p.baseUrl === e.baseUrl)?.hint || PRESETS[4].hint)}</p></div>
+    <div class="field"><label class="lbl" for="epKey">API 키</label><div class="inrow"><input class="in mono" id="epKey" type="password" value="${esc(e.apiKey)}" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="이 기기에만 저장됩니다"><button class="btn" id="epKeyShow" type="button">보기</button></div></div>
+    <div class="field"><label class="lbl" for="epModel">모델 ID</label><div class="inrow"><input class="in mono" id="epModel" value="${esc(e.model)}" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="예: LGAI-EXAONE/K-EXAONE-236B-A23B"><button class="btn" id="epLoad" type="button">목록</button></div><div class="mlist" id="epModels" hidden></div></div>
+    <div class="grid2">
+      <div class="field"><label class="lbl" for="epTemp">Temperature</label><input class="in mono" id="epTemp" value="${esc(e.temperature)}" inputmode="decimal" placeholder="기본값"></div>
+      <div class="field"><label class="lbl" for="epMax">최대 출력 토큰</label><input class="in mono" id="epMax" value="${esc(e.maxTokens)}" inputmode="numeric" placeholder="기본값"></div>
+    </div>
+    <label class="toggle"><input type="checkbox" id="epStream" ${e.stream !== false ? 'checked' : ''}><span>스트리밍 응답<small>답이 생성되는 대로 보여 줍니다</small></span></label>
+    <label class="toggle"><input type="checkbox" id="epProxy" ${e.useProxy ? 'checked' : ''}><span>프록시 경유<small>"연결하지 못했습니다(CORS)" 오류가 날 때 켭니다. 설정에서 프록시 주소가 필요합니다</small></span></label>
+    <details class="adv" ${e.extra ? 'open' : ''}><summary>추가 파라미터 (JSON)</summary>
+      <textarea class="in mono" id="epExtra" rows="4" placeholder='{"chat_template_kwargs": {"enable_thinking": true}}'>${esc(e.extra)}</textarea>
+      <p class="note">요청 본문에 그대로 합쳐집니다. 추론 모드 켜기처럼 서버별 옵션을 넣을 때 씁니다.</p></details>
+    <div class="test" id="epTestOut" hidden></div>
+    <div class="btns"><button class="btn primary" id="epSave">저장</button><button class="btn" id="epTest">연결 테스트</button></div>
+    ${id ? `<button class="btn danger" id="epDel">이 모델 삭제</button>
+    <div class="confirm" id="epDelConfirm" hidden><span>이 모델 설정을 지웁니다. 지난 대화 기록은 남습니다.</span><div class="btns"><button class="btn danger" id="epDelYes">삭제</button><button class="btn" id="epDelNo">취소</button></div></div>` : ''}`;
+  bindEpForm(e);
+  openDlg('dlgEp');
+}
+function readEpForm() {
+  return {
+    name: $('#epName').value.trim(),
+    baseUrl: $('#epUrl').value.trim().replace(/\/chat\/completions\/?$/, '').replace(/\/+$/, ''),
+    apiKey: $('#epKey').value.trim(),
+    model: $('#epModel').value.trim(),
+    temperature: $('#epTemp').value.trim(),
+    maxTokens: $('#epMax').value.trim(),
+    stream: $('#epStream').checked,
+    useProxy: $('#epProxy').checked,
+    extra: $('#epExtra').value.trim()
+  };
+}
+function validateEp(f, forTest) {
+  if (!forTest && !f.name) return '이름을 입력하세요.';
+  if (!/^https?:\/\//i.test(f.baseUrl)) return 'Base URL은 https:// 로 시작해야 합니다.';
+  if (/^http:\/\//i.test(f.baseUrl) && !/^http:\/\/(localhost|127\.0\.0\.1)/i.test(f.baseUrl) && location.protocol === 'https:') return 'https로 열린 이 페이지에서는 http:// 주소를 호출할 수 없습니다. https 주소를 쓰거나 프록시를 거치세요.';
+  if (!f.model) return '모델 ID를 입력하세요.';
+  if (f.temperature && isNaN(+f.temperature)) return 'Temperature는 숫자로 입력하세요.';
+  if (f.maxTokens && !(+f.maxTokens > 0)) return '최대 출력 토큰은 양의 정수로 입력하세요.';
+  if (f.extra) { try { const j = JSON.parse(f.extra); if (typeof j !== 'object' || Array.isArray(j) || j === null) return '추가 파라미터는 { } 형태의 JSON이어야 합니다.'; } catch (e) { return '추가 파라미터 JSON 형식이 올바르지 않습니다.'; } }
+  return '';
+}
+function bindEpForm(e) {
+  $$('[data-preset]').forEach(b => b.onclick = () => {
+    const p = PRESETS.find(x => x.key === b.dataset.preset);
+    $$('[data-preset]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    $('#epName').value = p.name; $('#epUrl').value = p.baseUrl; $('#epModel').value = p.model; $('#epHint').textContent = p.hint;
+    $('#epKey').focus();
+  });
+  $('#epKeyShow').onclick = () => { const k = $('#epKey'); const show = k.type === 'password'; k.type = show ? 'text' : 'password'; $('#epKeyShow').textContent = show ? '숨김' : '보기'; };
+  $('#epLoad').onclick = async () => {
+    const f = readEpForm();
+    if (!/^https?:\/\//i.test(f.baseUrl)) { toast('Base URL을 먼저 입력하세요.'); return; }
+    const btn = $('#epLoad'); btn.disabled = true; btn.textContent = '…';
+    try {
+      const res = await doFetch(f, f.baseUrl + '/models', { method: 'GET', headers: { Accept: 'application/json' } });
+      if (!res.ok) throw await readError(res);
+      const j = await res.json();
+      const ids = (j.data || j.models || []).map(m => m.id || m.name).filter(Boolean).sort();
+      const box = $('#epModels');
+      if (!ids.length) { box.hidden = true; toast('모델 목록이 비어 있습니다. 모델 ID를 직접 입력하세요.'); return; }
+      box.hidden = false;
+      box.innerHTML = ids.slice(0, 300).map(id => `<button class="mopt" type="button" data-mid="${esc(id)}">${esc(id)}</button>`).join('');
+      box.onclick = ev => { const b = ev.target.closest('[data-mid]'); if (b) { $('#epModel').value = b.dataset.mid; box.hidden = true; } };
+      toast(`모델 ${fmt(ids.length)}개를 불러왔습니다. 하나를 고르세요.`);
+    } catch (err) {
+      toast('목록을 불러오지 못했습니다. 이 서버가 목록 조회를 지원하지 않을 수 있으니 모델 ID를 직접 입력하세요.\n' + (err.message || ''), 5000);
+    } finally { btn.disabled = false; btn.textContent = '목록'; }
+  };
+  $('#epTest').onclick = async () => {
+    const f = readEpForm();
+    const v = validateEp(f, true);
+    const out = $('#epTestOut');
+    out.hidden = false; out.className = 'test';
+    if (v) { out.className = 'test bad'; out.textContent = v; return; }
+    out.textContent = '테스트 요청을 보내는 중…';
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 45000);
+    const t0 = performance.now();
+    let txt = '', thinking = '';
+    try {
+      await callEndpoint(Object.assign({}, f, { stream: false }), [{ role: 'user', content: '"연결 확인"이라고만 답하세요.' }], { signal: ctrl.signal, onDelta: (c, r) => { txt += c; thinking += r; } });
+      out.className = 'test ok';
+      out.textContent = `연결 성공 · ${((performance.now() - t0) / 1000).toFixed(1)}초\n응답: ${txt.trim().slice(0, 160) || (thinking ? '(추론만 반환됨. 최대 출력 토큰을 늘려 보세요)' : '(빈 응답)')}`;
+    } catch (err) {
+      out.className = 'test bad';
+      out.textContent = err.name === 'AbortError' ? '45초 안에 응답이 없습니다. 주소와 네트워크를 확인하세요.' : (err.message || String(err));
+    } finally { clearTimeout(timer); }
+  };
+  $('#epSave').onclick = () => {
+    const f = readEpForm();
+    const v = validateEp(f, false);
+    if (v) { const out = $('#epTestOut'); out.hidden = false; out.className = 'test bad'; out.textContent = v; return; }
+    if (epDraftId) Object.assign(getEp(epDraftId), f);
+    else {
+      const ne = Object.assign(newEndpoint(), f);
+      S.endpoints.push(ne);
+      if (!S.settings.active) S.settings.active = ne.id;
+      if (S.settings.compare.length < 4) S.settings.compare.push(ne.id);
+    }
+    save(); closeDlg('dlgEp'); renderRail(true); if (!currentThread().messages.length) renderMsgs();
+    if ($('#dlgSettings').open) renderSettings();
+    toast('모델을 저장했습니다');
+  };
+  if (epDraftId) {
+    $('#epDel').onclick = () => { $('#epDelConfirm').hidden = false; $('#epDel').hidden = true; };
+    $('#epDelNo').onclick = () => { $('#epDelConfirm').hidden = true; $('#epDel').hidden = false; };
+    $('#epDelYes').onclick = () => {
+      S.endpoints = S.endpoints.filter(x => x.id !== epDraftId);
+      normalize(); save(); closeDlg('dlgEp'); renderAll();
+      if ($('#dlgSettings').open) renderSettings();
+      toast('모델을 삭제했습니다');
+    };
+  }
+}
+
+/* ---------- settings ---------- */
+function renderSettings() {
+  const theme = S.settings.theme;
+  $('#settingsBody').innerHTML = `
+    <section class="blk"><h3 class="sec">모델</h3>
+      ${S.endpoints.length ? `<div class="list">${S.endpoints.map(e => `<button class="li" data-edit-ep="${e.id}">
+        <span class="dot" style="--c:var(${epColor(e.id)})"></span>
+        <span class="li-main"><b>${esc(e.name || '이름 없음')}</b><small class="mono">${esc(e.model || '모델 ID 없음')}</small></span>
+        ${e.apiKey ? '' : '<span class="badge warn">키 없음</span>'}${e.useProxy ? '<span class="badge">프록시</span>' : ''}${svg(P.chev)}
+      </button>`).join('')}</div>` : '<p class="note">등록된 모델이 없습니다.</p>'}
+      <button class="btn" data-add-ep>+ 모델 추가</button>
+    </section>
+    <section class="blk"><h3 class="sec">CORS 프록시 <span class="badge">필요할 때만</span></h3>
+      <p class="note">일부 서버는 웹 페이지에서 직접 부르는 것을 막습니다. 그럴 때 Cloudflare Worker 프록시를 거쳐 호출합니다. 모델 편집에서 "프록시 경유"를 켠 모델에만 적용됩니다.</p>
+      <div class="field"><label class="lbl" for="pxUrl">프록시 주소</label><input class="in mono" id="pxUrl" value="${esc(S.settings.proxyUrl)}" placeholder="https://이름.계정.workers.dev" inputmode="url" autocapitalize="off" spellcheck="false"></div>
+      <div class="field"><label class="lbl" for="pxKey">프록시 키</label><input class="in mono" id="pxKey" type="password" value="${esc(S.settings.proxyKey)}" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Worker의 PROXY_KEY와 같은 값"></div>
+      <details class="guide"><summary>프록시 만드는 법 (휴대폰 브라우저로 가능)</summary>
+        <ol>
+          <li><span class="mono">dash.cloudflare.com</span> 에 가입하고 로그인합니다. 무료 요금제로 충분합니다.</li>
+          <li>Workers &amp; Pages에서 새 Worker를 만들고 기본 상태로 배포(Deploy)합니다.</li>
+          <li>코드 편집(Edit code)을 열고 기존 코드를 지운 뒤, 아래 버튼으로 복사한 코드를 붙여 넣고 다시 배포합니다.</li>
+          <li>Worker 설정의 Variables and Secrets에서 이름 <span class="mono">PROXY_KEY</span>, 값은 임의의 긴 문자열로 Secret을 추가합니다.</li>
+          <li>코드 맨 위 <span class="mono">ALLOWED_HOSTS</span> 목록에 쓰려는 API 도메인이 있는지 확인합니다.</li>
+          <li>Worker 주소와 PROXY_KEY 값을 위 두 칸에 입력하고, 모델 편집에서 "프록시 경유"를 켭니다.</li>
+        </ol>
+        <button class="btn" id="pxCopy">프록시 코드 복사</button>
+      </details>
+    </section>
+    <section class="blk"><h3 class="sec">화면</h3>
+      <div class="seg" role="group" aria-label="테마" style="align-self:flex-start">
+        ${[['system', '시스템'], ['light', '라이트'], ['dark', '다크']].map(([k, l]) => `<button data-theme-set="${k}" aria-pressed="${theme === k}">${l}</button>`).join('')}
+      </div>
+    </section>
+    <section class="blk"><h3 class="sec">데이터</h3>
+      <p class="note">대화, API 키, 템플릿은 이 기기의 이 브라우저에만 저장됩니다. 브라우저 데이터를 지우면 사라지니 가끔 백업하세요. 다른 기기로 옮길 때도 백업 파일을 씁니다.</p>
+      <label class="toggle"><input type="checkbox" id="bkKeys"><span>백업에 API 키 포함<small>파일을 다른 곳에 올리거나 공유할 거면 끄세요</small></span></label>
+      <div class="btns"><button class="btn" id="bkExport">백업 내보내기</button><button class="btn" id="bkImport">백업 가져오기</button></div>
+      <input type="file" id="bkFile" accept="application/json,.json" hidden>
+      <div class="confirm" id="bkConfirm" hidden><span id="bkMsg"></span><div class="btns"><button class="btn danger" id="bkYes">덮어쓰기</button><button class="btn" id="bkNo">취소</button></div></div>
+      <button class="btn danger" id="wipe">모든 대화 삭제</button>
+      <div class="confirm" id="wipeConfirm" hidden><span>대화 ${S.threads.filter(t => t.messages.length).length}개를 모두 지웁니다. 모델 설정과 템플릿은 남습니다.</span><div class="btns"><button class="btn danger" id="wipeYes">모두 삭제</button><button class="btn" id="wipeNo">취소</button></div></div>
+    </section>
+    <section class="blk"><h3 class="sec">정보</h3>
+      <p class="note">OpenAI 호환 <span class="mono">/chat/completions</span> 형식을 쓰는 서버라면 EXAONE, 사내 vLLM, OpenRouter 등 어디든 연결됩니다. 요청은 이 기기에서 각 서버로 바로 가며(프록시를 켠 경우 본인 Worker 경유), 중간에 다른 서버를 거치지 않습니다.</p>
+    </section>`;
+  $('#pxUrl').onchange = e => { S.settings.proxyUrl = e.target.value.trim().replace(/\/+$/, ''); save(); };
+  $('#pxKey').onchange = e => { S.settings.proxyKey = e.target.value.trim(); save(); };
+  $('#pxCopy').onclick = () => copyText($('#proxySrc').textContent.trim() + '\n');
+  $$('[data-theme-set]').forEach(b => b.onclick = () => { S.settings.theme = b.dataset.themeSet; applyTheme(); save(); renderSettings(); });
+  $('#bkExport').onclick = () => {
+    const keep = $('#bkKeys').checked;
+    const data = JSON.parse(JSON.stringify(S));
+    if (!keep) { data.endpoints.forEach(e => { e.apiKey = ''; }); data.settings.proxyKey = ''; }
+    data.exportedAt = new Date().toISOString();
+    const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
+    const a = document.createElement('a');
+    const d = new Date();
+    a.href = URL.createObjectURL(blob);
+    a.download = `model-workroom-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  };
+  let incoming = null;
+  $('#bkImport').onclick = () => $('#bkFile').click();
+  $('#bkFile').onchange = async e => {
+    const f = e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    try {
+      const j = JSON.parse(await f.text());
+      if (!Array.isArray(j.endpoints) || !Array.isArray(j.threads)) throw new Error();
+      incoming = j;
+      $('#bkMsg').textContent = `백업(대화 ${j.threads.length}개, 모델 ${j.endpoints.length}개)으로 현재 데이터를 덮어씁니다. 백업에 키가 없으면 같은 모델의 현재 키는 유지합니다.`;
+      $('#bkConfirm').hidden = false;
+    } catch (err) { toast('모델 작업실 백업 파일이 아닙니다.'); }
+  };
+  $('#bkNo').onclick = () => { incoming = null; $('#bkConfirm').hidden = true; };
+  $('#bkYes').onclick = () => {
+    if (!incoming) return;
+    const oldKeys = Object.fromEntries(S.endpoints.map(e => [e.id, e.apiKey]));
+    const oldPx = S.settings.proxyKey;
+    S = incoming; incoming = null;
+    normalize();
+    S.endpoints.forEach(e => { if (!e.apiKey && oldKeys[e.id]) e.apiKey = oldKeys[e.id]; });
+    if (!S.settings.proxyKey && oldPx) S.settings.proxyKey = oldPx;
+    if (!currentThread()) { const t = [...S.threads].sort((a, b) => b.updated - a.updated)[0]; if (t) S.current = t.id; else newThread(); }
+    applyTheme(); save(); renderAll(); renderSettings(); toast('백업을 가져왔습니다');
+  };
+  $('#wipe').onclick = () => { $('#wipeConfirm').hidden = false; $('#wipe').hidden = true; };
+  $('#wipeNo').onclick = () => { $('#wipeConfirm').hidden = true; $('#wipe').hidden = false; };
+  $('#wipeYes').onclick = () => {
+    if (busy) busy.abort();
+    S.threads = []; newThread(); save(); renderAll(); renderSettings(); toast('대화를 모두 지웠습니다');
+  };
+}
+
+/* ---------- events ---------- */
+function setMode(mode) {
+  const th = currentThread();
+  if (th.mode === mode) return;
+  if (busy) { toast('응답이 끝난 뒤에 바꿀 수 있습니다.'); return; }
+  if (!th.messages.length) th.mode = mode;
+  else { newThread(mode); toast(mode === 'compare' ? '새 비교 대화를 시작했습니다' : '새 대화를 시작했습니다'); }
+  save(); renderAll();
+}
+function pickEndpoint(id) {
+  const th = currentThread();
+  if (th.mode === 'compare') {
+    const c = S.settings.compare;
+    if (c.includes(id)) S.settings.compare = c.filter(x => x !== id);
+    else if (c.length >= 4) { toast('한 번에 최대 4개까지 비교합니다.'); return; }
+    else c.push(id);
+  } else S.settings.active = id;
+  save(); renderRail();
+}
+function bindGlobal() {
+  $('#btnDrawer').innerHTML = svg(P.menu);
+  $('#btnSettings').innerHTML = svg(P.sliders);
+  $('#btnAttach').innerHTML = svg(P.clip);
+  $('#btnTpl').innerHTML = svg(P.tpl);
+  $$('[data-close]').forEach(b => { b.innerHTML = svg(P.close); b.onclick = () => b.closest('dialog').close(); });
+  $$('dialog').forEach(d => d.addEventListener('click', e => { if (e.target === d) d.close(); }));
+
+  $('#btnDrawer').onclick = () => { renderDrawer(); openDlg('dlgDrawer'); };
+  $('#btnNew').onclick = () => { if (busy) busy.abort(); newThread(currentThread()?.mode || 'chat'); closeDlg('dlgDrawer'); renderAll(); $('#input').focus(); };
+  $('#drawerBody').onclick = e => { const b = e.target.closest('[data-tid]'); if (!b) return; S.current = b.dataset.tid; save(); closeDlg('dlgDrawer'); renderAll(); };
+  $('#btnThread').onclick = openThread;
+  $('#btnSettings').onclick = () => { renderSettings(); openDlg('dlgSettings'); };
+  $('#modeChat').onclick = () => setMode('chat');
+  $('#modeCmp').onclick = () => setMode('compare');
+  $('#btnSend').onclick = send;
+  $('#btnAttach').onclick = () => $('#file').click();
+  $('#file').onchange = e => { const fs = Array.from(e.target.files || []); e.target.value = ''; addFiles(fs); };
+  $('#btnTpl').onclick = () => { renderTplList(); openDlg('dlgTpl'); };
+  $('#tplBody').onclick = e => {
+    const ins = e.target.closest('[data-ins]'); if (ins) return insertTemplate(ins.dataset.ins);
+    const sys = e.target.closest('[data-sys]');
+    if (sys) {
+      const t = S.templates.find(x => x.id === sys.dataset.sys); const th = currentThread();
+      th.system = t.body.replace('{{본문}}', '').trim(); save(); renderTop(); closeDlg('dlgTpl');
+      toast(`"${t.title}"을 이 대화의 시스템 프롬프트로 넣었습니다`); return;
+    }
+    const ed = e.target.closest('[data-tedit]'); if (ed) renderTplEdit(ed.dataset.tedit);
+  };
+  $('#atts').onclick = e => { const b = e.target.closest('[data-rm]'); if (!b) return; pending = pending.filter(p => p.id !== b.dataset.rm); renderAtts(); };
+
+  const ta = $('#input');
+  ta.addEventListener('input', autosize);
+  ta.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); } });
+  ta.addEventListener('paste', e => {
+    const files = Array.from(e.clipboardData?.files || []);
+    if (files.length) { e.preventDefault(); addFiles(files); }
+  });
+  scrollEl().addEventListener('scroll', () => { stick = nearBottom(); }, { passive: true });
+
+  document.addEventListener('click', e => {
+    const add = e.target.closest('[data-add-ep]'); if (add) { openEp(null); return; }
+    const ed = e.target.closest('[data-edit-ep]'); if (ed) { openEp(ed.dataset.editEp); return; }
+    const pk = e.target.closest('[data-pick]'); if (pk) { pickEndpoint(pk.dataset.pick); return; }
+    const tp = e.target.closest('#msgs [data-tpl]'); if (tp) { insertTemplate(tp.dataset.tpl); return; }
+    const cp = e.target.closest('[data-copy]'); if (cp) { const r = findReply(cp.dataset.copy); if (r) copyText(r.content); return; }
+    const rg = e.target.closest('[data-regen]'); if (rg) { regen(rg.dataset.regen); return; }
+  });
+
+  if (window.visualViewport) {
+    const vv = window.visualViewport;
+    const fit = () => { document.documentElement.style.setProperty('--app-h', vv.height + 'px'); if (vv.offsetTop) window.scrollTo(0, 0); };
+    vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit); fit();
+  }
+}
+function makeIcon() {
+  try {
+    const c = document.createElement('canvas'); c.width = c.height = 180;
+    const g = c.getContext('2d');
+    g.fillStyle = '#0E6B5E'; g.fillRect(0, 0, 180, 180);
+    g.fillStyle = '#FFFFFF';
+    const bar = (y, w, a) => { g.globalAlpha = a; g.beginPath(); g.roundRect ? g.roundRect(40, y, w, 18, 9) : g.rect(40, y, w, 18); g.fill(); };
+    bar(52, 100, 1); bar(81, 72, .75); bar(110, 88, .5);
+    g.globalAlpha = 1;
+    const url = c.toDataURL('image/png');
+    $('#touchIcon').href = url; $('#favIcon').href = url;
+  } catch (e) {}
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  bindGlobal();
+  if (window.DOMPurify) DOMPurify.addHook('afterSanitizeAttributes', n => { if (n.tagName === 'A') { n.setAttribute('target', '_blank'); n.setAttribute('rel', 'noopener noreferrer'); } });
+  await store.open();
+  const saved = await store.get('state');
+  if (saved && saved.version) S = saved;
+  normalize();
+  applyTheme();
+  if (!currentThread()) {
+    const t = [...S.threads].sort((a, b) => b.updated - a.updated)[0];
+    if (t) S.current = t.id; else newThread('chat');
+  }
+  renderAll();
+  makeIcon();
+  if (!store.db) toast('이 브라우저에서는 저장소를 쓸 수 없어 새로고침하면 내용이 사라집니다. 사생활 보호(시크릿) 모드인지 확인하세요.', 6000);
+  if (!saved) save();
+});
+</script>
+</body>
+</html>
